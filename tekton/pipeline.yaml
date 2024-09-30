@@ -1,65 +1,66 @@
-# This pipeline needs the following tasks from Tekton Hub
-#   - git-clone
-#   - flake8
+# This pipeline requires the following tasks from Tekton Hub:
+#   - git-clone: To clone the repository.
+#   - flake8: For linting the code.
+#   - nose: For running tests.
 #
 ---
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
-metadata:  
+metadata:
   name: cd-pipeline
 spec:
   workspaces:
     - name: pipeline-workspace
   params:
-    - name: repo-url
-    - name: branch
+    - name: repo-url  # Repository URL parameter
+    - name: branch    # Branch parameter with default value
       default: main
   tasks:
     - name: init
       workspaces:
         - name: source
-          workspace: pipeline-workspace          
+          workspace: pipeline-workspace
       taskRef:
-        name: cleanup
+        name: cleanup  # Task for cleaning up the workspace
 
     - name: clone
       workspaces:
         - name: output
-          workspace: pipeline-workspace          
+          workspace: pipeline-workspace
       taskRef:
-        name: git-clone
+        name: git-clone  # Task for cloning the repository
       params:
         - name: url
-          value: $(params.repo-url)
+          value: $(params.repo-url)  # URL of the repository
         - name: revision
-          value: $(params.branch)
+          value: $(params.branch)     # Branch to checkout
       runAfter:
-        - init
+        - init  # Run after the init task
 
     - name: lint
       workspaces:
         - name: source
           workspace: pipeline-workspace
       taskRef:
-        name: flake8
+        name: flake8  # Task for linting the code
       params:
         - name: image
-          value: "python:3.9-slim"
+          value: "python:3.9-slim"  # Base image for linting
         - name: args
-          value: ["--count", "--max-complexity=10", "--max-line-length=127", "--statistics"]
+          value: ["--count", "--max-complexity=10", "--max-line-length=127", "--statistics"]  # Linting arguments
       runAfter:
-        - clone
-    
+        - clone  # Run after the clone task
+
     - name: tests
       workspaces:
         - name: source
           workspace: pipeline-workspace
       taskRef:
-        name: nose
+        name: nose  # Task for running tests
       params:
-      - name: database_uri
-        value: "sqlite:///test.db"
-      - name: args
-        value: "-v --with-spec --spec-color"
+        - name: database_uri
+          value: "sqlite:///test.db"  # Database URI for tests
+        - name: args
+          value: "-v --with-spec --spec-color"  # Test arguments
       runAfter:
-        - clone
+        - clone  # Run after the clone task
