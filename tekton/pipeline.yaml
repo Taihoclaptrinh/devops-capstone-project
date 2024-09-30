@@ -1,66 +1,79 @@
-# This pipeline requires the following tasks from Tekton Hub:
-#   - git-clone: To clone the repository.
-#   - flake8: For linting the code.
-#   - nose: For running tests.
+# This pipeline needs the following tasks from Tekton Hub
+#   - git-clone
+#   - flake8
+#   - buildah
 #
 ---
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
-metadata:
+metadata:  
   name: cd-pipeline
 spec:
   workspaces:
     - name: pipeline-workspace
   params:
-    - name: repo-url  # Repository URL parameter
-    - name: branch    # Branch parameter with default value
+    - name: repo-url
+    - name: branch
       default: main
+    - name: build-image  # New parameter for the Docker image to build
   tasks:
     - name: init
       workspaces:
         - name: source
-          workspace: pipeline-workspace
+          workspace: pipeline-workspace          
       taskRef:
-        name: cleanup  # Task for cleaning up the workspace
+        name: cleanup
 
     - name: clone
       workspaces:
         - name: output
-          workspace: pipeline-workspace
+          workspace: pipeline-workspace          
       taskRef:
-        name: git-clone  # Task for cloning the repository
+        name: git-clone
       params:
         - name: url
-          value: $(params.repo-url)  # URL of the repository
+          value: $(params.repo-url)
         - name: revision
-          value: $(params.branch)     # Branch to checkout
+          value: $(params.branch)
       runAfter:
-        - init  # Run after the init task
+        - init
 
     - name: lint
       workspaces:
         - name: source
           workspace: pipeline-workspace
       taskRef:
-        name: flake8  # Task for linting the code
+        name: flake8
       params:
         - name: image
-          value: "python:3.9-slim"  # Base image for linting
+          value: "python:3.9-slim"
         - name: args
-          value: ["--count", "--max-complexity=10", "--max-line-length=127", "--statistics"]  # Linting arguments
+          value: ["--count", "--max-complexity=10", "--max-line-length=127", "--statistics"]
       runAfter:
-        - clone  # Run after the clone task
+        - clone
 
     - name: tests
       workspaces:
         - name: source
           workspace: pipeline-workspace
       taskRef:
-        name: nose  # Task for running tests
+        name: nose
       params:
-        - name: database_uri
-          value: "sqlite:///test.db"  # Database URI for tests
         - name: args
-          value: "-v --with-spec --spec-color"  # Test arguments
+          value: "-v --with-spec --spec-color"
       runAfter:
-        - clone  # Run after the clone task
+        - clone
+
+    - name: build  # New build task added
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+      taskRef:
+        name: buildah  # Using the buildah ClusterTask
+        kind: ClusterTask
+      params:
+        - name: IMAGE
+          value: "$(params.build-image)"  # Set image name from parameters
+      runAfter:
+        - lint  # Wait for lint to complete
+        - tests  # Wait for tests to complete
